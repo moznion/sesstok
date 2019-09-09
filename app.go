@@ -303,6 +303,9 @@ func initialize(rcFilePath string) error {
 	if string(pswd) != string(confirmPswd) {
 		return errors.New("invalid password has come")
 	}
+	if string(pswd) == "" {
+		return errors.New("empty password is not allowed")
+	}
 
 	fmt.Print("\naccess key ID for assume role: ")
 	var accessKeyID string
