@@ -8,6 +8,10 @@ See also: [https://aws.amazon.com/premiumsupport/knowledge-center/authenticate-m
 
 - Get STS onetime session token
 - Update AWS credentials file automatically once it has retrieved a session token
+  - It updates following items
+    - `aws_access_key_id`
+    - `aws_secret_access_key`
+    - `aws_session_token`
 - RC file of this tool is encrypted by passphrase for security
 
 ## Usage
@@ -34,11 +38,11 @@ Help Options:
 
 After execute the command, it updates AWS credentials file automatically.
 
-### Initiation
+### Initializing
 
-When you run this tool for the first time, it requires the initiation procedure.
+When you run this tool for the first time, it requires the initializing procedure.
 
-![initiation](./doc/init.gif)
+![initializing](./doc/init.gif)
 
 - `master password`: password to encrypt a rc file
 - `Access Key ID`: AWS access key ID for assume role
