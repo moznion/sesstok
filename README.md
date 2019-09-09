@@ -38,6 +38,8 @@ Help Options:
 
 After execute the command, it updates AWS credentials file automatically.
 
+![updated_credentials](./doc/credentials.png)
+
 ### Initializing
 
 When you run this tool for the first time, it requires the initializing procedure.
