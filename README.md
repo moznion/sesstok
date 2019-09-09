@@ -58,6 +58,8 @@ Please switch the rc files.
 make build VERSION=x.y.z
 ```
 
+Pre-built binaries are [here](https://github.com/moznion/sesstok/releases).
+
 LICENSE
 --
 
