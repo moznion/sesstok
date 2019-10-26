@@ -34,14 +34,15 @@ var encryptionConfiguration = &packet.Config{
 }
 
 type options struct {
-	RCFilePath          string                     `short:"r" long:"rc" description:"configuration file path of sesstok (default: $HOME/.sesstok.rc) "`
-	CredentialsFilePath string                     `short:"c" long:"credentials" description:"file path of AWS credentials (default: $HOME/.aws/credentials)"`
-	Password            string                     `short:"P" long:"password" description:"(NOT RECOMMENDED) pass the master password"`
+	RCFilePath          string                     `short:"r" long:"rc"                       description:"configuration file path of sesstok (default: $HOME/.sesstok.rc)"`
+	CredentialsFilePath string                     `short:"c" long:"credentials"              description:"file path of AWS credentials (default: $HOME/.aws/credentials)"`
+	PasswordRequired    bool                       `short:"p" long:"password"                 description:"use master password; if you've configured a master password, this option has to be specified'"`
+	Password            string                     `short:"P"                                 description:"(NOT RECOMMENDED) pass the master password"`
 	Duration            int64                      `short:"d" long:"duration" default:"86400" description:"duration of STS session token (unit: second)"`
-	Dryrun              bool                       `short:"D" long:"dryrun" description:"dryrun mode (i.e. don't update credentials file)"`
-	Silent              bool                       `short:"s" long:"silent" description:"silent mode"`
-	Version             bool                       `short:"v" long:"version" description:"show the version"`
-	DumpRCFile          bool                       `long:"dumprc" description:"dump rc file contents"`
+	Dryrun              bool                       `short:"D" long:"dryrun"                   description:"dryrun mode (i.e. don't update credentials file)"`
+	Silent              bool                       `short:"s" long:"silent"                   description:"silent mode"`
+	Version             bool                       `short:"v" long:"version"                  description:"show the version"`
+	DumpRCFile          bool                       `long:"dumprc"                             description:"dump rc file contents"`
 	Args                struct{ TokenCode string } `positional-args:"yes"`
 }
 
@@ -197,8 +198,13 @@ func readRCFile(rcFilePath string, pswd []byte) (*config, error) {
 }
 
 func readMasterPassword(opts *options) ([]byte, error) {
-	if pswd := opts.Password; pswd != "" {
-		return []byte(pswd), nil
+	pswdThroughCLI := opts.Password
+	if !opts.PasswordRequired && pswdThroughCLI == "" {
+		return make([]byte, 0), nil
+	}
+
+	if pswdThroughCLI != "" {
+		return []byte(pswdThroughCLI), nil
 	}
 
 	fmt.Print("master password: ")
@@ -290,24 +296,36 @@ func initialize(rcFilePath string) error {
 		return errors.New("abort")
 	}
 
-	fmt.Print("master password: ")
-	pswd, err := terminal.ReadPassword(int(syscall.Stdin))
+	fmt.Printf("would you like to set a master password? [N/y] ")
+	var shouldSetMasterPswd string
+	_, err = fmt.Scanf("%s", &shouldSetMasterPswd)
 	if err != nil {
-		return err
+		return errors.New("abort")
 	}
-	fmt.Print("\nmaster password (confirm): ")
-	confirmPswd, err := terminal.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		return err
-	}
-	if string(pswd) != string(confirmPswd) {
-		return errors.New("invalid password has come")
-	}
-	if string(pswd) == "" {
-		return errors.New("empty password is not allowed")
+	shouldSetMasterPswd = strings.ToLower(shouldSetMasterPswd)
+
+	pswd := make([]byte, 0)
+	if shouldSetMasterPswd == "y" || shouldSetMasterPswd == "yes" {
+		fmt.Print("master password: ")
+		pswd, err = terminal.ReadPassword(int(syscall.Stdin))
+		if err != nil {
+			return err
+		}
+		fmt.Print("\nmaster password (confirm): ")
+		confirmPswd, err := terminal.ReadPassword(int(syscall.Stdin))
+		fmt.Printf("\n")
+		if err != nil {
+			return err
+		}
+		if string(pswd) != string(confirmPswd) {
+			return errors.New("invalid password has come")
+		}
+		if string(pswd) == "" {
+			return errors.New("empty password is not allowed")
+		}
 	}
 
-	fmt.Print("\naccess key ID for assume role: ")
+	fmt.Print("access key ID for assume role: ")
 	var accessKeyID string
 	_, err = fmt.Scanf("%s", &accessKeyID)
 	if err != nil {
