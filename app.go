@@ -43,6 +43,7 @@ type options struct {
 	Silent              bool                       `short:"s" long:"silent"                   description:"silent mode"`
 	Version             bool                       `short:"v" long:"version"                  description:"show the version"`
 	DumpRCFile          bool                       `long:"dumprc"                             description:"dump rc file contents"`
+	Init                bool                       `long:"init"                               description:"initialize a configuration (this option can be used with -r (--rc) options)"`
 	Args                struct{ TokenCode string } `positional-args:"yes"`
 }
 
@@ -73,7 +74,12 @@ func Run(args []string) {
 		fmt.Printf("%s\n", errors.Wrap(err, "failed to get rc file path"))
 		os.Exit(1)
 	}
-	if _, err := os.Stat(rcFilePath); err != nil {
+
+	if _, err := os.Stat(rcFilePath); opts.Init || err != nil {
+		fmt.Printf("rc file path: %s\n", rcFilePath)
+		if err != nil {
+			fmt.Printf("rc file doesn't exist\n")
+		}
 		err = initialize(rcFilePath)
 		if err != nil {
 			fmt.Printf("%s\n", errors.Wrap(err, fmt.Sprintf("failed to initialize (rc file: %s)", rcFilePath)))
@@ -284,7 +290,6 @@ func getRCFilePath(opts *options) (string, error) {
 }
 
 func initialize(rcFilePath string) error {
-	fmt.Printf("rc file doesn't exist: %s\n", rcFilePath)
 	fmt.Printf("would you like initialize? [N/y] ")
 	var shouldInit string
 	_, err := fmt.Scanf("%s", &shouldInit)
