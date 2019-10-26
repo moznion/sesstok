@@ -18,17 +18,19 @@ See also: [https://aws.amazon.com/premiumsupport/knowledge-center/authenticate-m
 
 ```
 Usage:
-  main [OPTIONS] TokenCode
+  sesstok [OPTIONS] [TokenCode]
 
 Application Options:
   -r, --rc=          configuration file path of sesstok (default: $HOME/.sesstok.rc)
   -c, --credentials= file path of AWS credentials (default: $HOME/.aws/credentials)
-  -P, --password=    (NOT RECOMMENDED) pass the master password
+  -p, --password     use master password; if you've configured a master password, this option has to be specified'
+  -P=                (NOT RECOMMENDED) pass the master password
   -d, --duration=    duration of STS session token (unit: second) (default: 86400)
   -D, --dryrun       dryrun mode (i.e. don't update credentials file)
   -s, --silent       silent mode
   -v, --version      show the version
       --dumprc       dump rc file contents
+      --init         initialize a configuration (this option can be used with -r (--rc) options)
 
 Help Options:
   -h, --help         Show this help message
