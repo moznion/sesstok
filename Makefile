@@ -8,7 +8,7 @@ REVISION=$(shell git rev-parse --verify HEAD)
 
 build: $(RELEASE_DIR)/sesstok_$(GOOS)_$(GOARCH)
 
-all: build-linux-amd64 build-linux-386 build-darwin-amd64 build-darwin-386 build-windows-amd64 build-windows-386
+all: clean build-linux-amd64 build-linux-386 build-darwin-amd64 build-darwin-386 build-windows-amd64 build-windows-386
 
 build-linux-amd64:
 	@$(MAKE) build GOOS=linux GOARCH=amd64
