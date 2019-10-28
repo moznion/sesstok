@@ -26,7 +26,7 @@ Application Options:
   -p, --password     use master password; if you've configured a master password, this option has to be specified'
   -P=                (NOT RECOMMENDED) pass the master password
   -d, --duration=    duration of STS session token (unit: second) (default: 86400)
-  -D, --dryrun       dryrun mode (i.e. don't update credentials file)
+  -t, --token-only   only retrieve STS session token (i.e. don't update credentials file)
   -s, --silent       silent mode
   -v, --version      show the version
       --dumprc       dump rc file contents

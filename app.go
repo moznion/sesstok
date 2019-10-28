@@ -39,7 +39,7 @@ type options struct {
 	PasswordRequired    bool                       `short:"p" long:"password"                 description:"use master password; if you've configured a master password, this option has to be specified'"`
 	Password            string                     `short:"P"                                 description:"(NOT RECOMMENDED) pass the master password"`
 	Duration            int64                      `short:"d" long:"duration" default:"86400" description:"duration of STS session token (unit: second)"`
-	Dryrun              bool                       `short:"D" long:"dryrun"                   description:"dryrun mode (i.e. don't update credentials file)"`
+	TokenOnly           bool                       `short:"t" long:"token-only"               description:"only retrieve STS session token (i.e. don't update credentials file)"`
 	Silent              bool                       `short:"s" long:"silent"                   description:"silent mode"`
 	Version             bool                       `short:"v" long:"version"                  description:"show the version"`
 	DumpRCFile          bool                       `long:"dumprc"                             description:"dump rc file contents"`
@@ -220,7 +220,7 @@ func readMasterPassword(opts *options) ([]byte, error) {
 }
 
 func updateCredentials(opts *options, conf *config, sessToken *sts.GetSessionTokenOutput) error {
-	if !opts.Dryrun {
+	if !opts.TokenOnly {
 		credentialsFilePath, err := getCredentialsFilePath(opts)
 		if err != nil {
 			return err
