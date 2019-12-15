@@ -39,7 +39,10 @@ endif
 clean:
 	rm -rf $(RELEASE_DIR)/sesstok_*
 
-check: lint vet
+check: test lint vet
+
+test:
+	go test -v -race ./...
 
 lint:
 	golint -set_exit_status $(PKGS)

@@ -1,25 +1,16 @@
 package sesstok
 
 import (
-	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 	"syscall"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/go-ini/ini"
-	"github.com/jessevdk/go-flags"
-	"github.com/mitchellh/go-homedir"
-	"github.com/pkg/errors"
-	"golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/packet"
+	"github.com/moznion/sesstok/internal"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -27,52 +18,20 @@ const awsAccessKeyIDKey = "aws_access_key_id"
 const awsSecretAccessKeyKey = "aws_secret_access_key"
 const awsSessionTokenKey = "aws_session_token"
 
-var ver string
-var rev string
-var encryptionConfiguration = &packet.Config{
-	DefaultCipher: packet.CipherAES256,
-}
+var (
+	// ErrTokenCodeMissing is an error to indicate the mandatory argument `TokenCode` is missing.
+	ErrTokenCodeMissing = errors.New("the required argument `TokenCode` was not provided")
+)
 
-type options struct {
-	RCFilePath          string                     `short:"r" long:"rc"                       description:"configuration file path of sesstok (default: $HOME/.sesstok.rc)"`
-	CredentialsFilePath string                     `short:"c" long:"credentials"              description:"file path of AWS credentials (default: $HOME/.aws/credentials)"`
-	PasswordRequired    bool                       `short:"p" long:"password"                 description:"use master password; if you've configured a master password, this option has to be specified'"`
-	Password            string                     `short:"P"                                 description:"(NOT RECOMMENDED) pass the master password"`
-	Duration            int64                      `short:"d" long:"duration" default:"86400" description:"duration of STS session token (unit: second)"`
-	TokenOnly           bool                       `short:"t" long:"token-only"               description:"only retrieve STS session token (i.e. don't update credentials file)"`
-	Silent              bool                       `short:"s" long:"silent"                   description:"silent mode"`
-	Version             bool                       `short:"v" long:"version"                  description:"show the version"`
-	DumpRCFile          bool                       `long:"dumprc"                             description:"dump rc file contents"`
-	Init                bool                       `long:"init"                               description:"initialize a configuration (this option can be used with -r (--rc) options)"`
-	Args                struct{ TokenCode string } `positional-args:"yes"`
-}
-
-type config struct {
-	AccessKeyID     string `json:"accessKeyID"`
-	SecretAccessKey string `json:"secretAccessKey"`
-	MFASerial       string `json:"mfaSerial"`
-	ProfileName     string `json:"profileName"`
-}
-
-// Run is the entrypoint of this application.
-func Run(args []string) {
-	var opts options
-	args, err := flags.ParseArgs(&opts, args)
-	if err != nil {
-		// show help
-		return
-	}
-
+// Run is the entry point of this application.
+func Run(opts *internal.Options) error {
 	if opts.Version {
-		fmt.Printf(`{"ver":"%s", "rev":"%s"}
-`, ver, rev)
-		return
+		return internal.ShowVersion()
 	}
 
-	rcFilePath, err := getRCFilePath(&opts)
+	rcFilePath, err := opts.GetRCFileFullPath()
 	if err != nil {
-		fmt.Printf("%s\n", errors.Wrap(err, "failed to get rc file path"))
-		os.Exit(1)
+		return fmt.Errorf("failed to get rc file path: %w", err)
 	}
 
 	if _, err := os.Stat(rcFilePath); opts.Init || err != nil {
@@ -82,146 +41,50 @@ func Run(args []string) {
 		}
 		err = initialize(rcFilePath)
 		if err != nil {
-			fmt.Printf("%s\n", errors.Wrap(err, fmt.Sprintf("failed to initialize (rc file: %s)", rcFilePath)))
+			return fmt.Errorf("failed to initialize (rc file: %s): %w", rcFilePath, err)
 		}
 		fmt.Print("OK, please retry this command with token code :)\n")
-		return
+		return nil
 	}
 
 	if opts.DumpRCFile {
-		pswd, err := readMasterPassword(&opts)
-		if err != nil {
-			fmt.Printf("%s\n", errors.Wrap(err, "failed to read master password"))
-			os.Exit(1)
-		}
-		conf, err := readRCFile(rcFilePath, pswd)
-		if err != nil {
-			fmt.Printf("%s\n", errors.Wrap(err, "failed to read rc file"))
-			os.Exit(1)
-		}
-		serializedConf, err := json.Marshal(conf)
-		if err != nil {
-			fmt.Printf("%s\n", errors.Wrap(err, "failed to serialize the contents of rc file"))
-			os.Exit(1)
-		}
-		fmt.Printf("%s\n", serializedConf)
-		return
+		return dumpRCFile(opts, rcFilePath)
 	}
 
 	tokenCode := opts.Args.TokenCode
 	if tokenCode == "" {
-		fmt.Print("the required argument `TokenCode` was not provided\n")
-		os.Exit(1)
+		return ErrTokenCodeMissing
 	}
 
-	pswd, err := readMasterPassword(&opts)
+	pswd, err := internal.LoadMasterPassword(opts)
 	if err != nil {
-		fmt.Printf("%s\n", errors.Wrap(err, "failed to read master password"))
-		os.Exit(1)
+		return fmt.Errorf("failed to read master password: %w", err)
 	}
-	conf, err := readRCFile(rcFilePath, pswd)
+	conf, err := internal.ReadRCFile(pswd, rcFilePath)
 	if err != nil {
-		fmt.Printf("%s\n", errors.Wrap(err, "failed to read rc file"))
-		os.Exit(1)
+		return fmt.Errorf("failed to read rc file: %w", err)
 	}
 
-	sessToken, err := getSessionToken(tokenCode, &opts, conf)
+	sessToken, err := internal.RetrieveSessionToken(tokenCode, conf.AccessKeyID, conf.SecretAccessKey, opts.Duration, conf.MFASerial)
 	if err != nil {
-		fmt.Printf("%s\n", errors.Wrap(err, "failed to get STS session token"))
-		os.Exit(1)
+		return fmt.Errorf("failed to get STS session token: %w", err)
 	}
 
 	if !opts.Silent {
 		fmt.Printf("%v\n", sessToken)
 	}
 
-	err = updateCredentials(&opts, conf, sessToken)
+	err = updateCredentials(opts, conf, sessToken)
 	if err != nil {
-		fmt.Printf("%s\n", errors.Wrap(err, "failed to update credentials file"))
-		os.Exit(1)
-	}
-}
-
-func writeRCFile(pswd []byte, rcFilePath string, conf *config) error {
-	serializedConf, err := json.Marshal(conf)
-	if err != nil {
-		return err
-	}
-
-	buff := bytes.NewBuffer(nil)
-	encrypt, err := openpgp.SymmetricallyEncrypt(buff, pswd, nil, encryptionConfiguration)
-	if err != nil {
-		return err
-	}
-	defer encrypt.Close()
-
-	_, err = encrypt.Write(serializedConf)
-	if err != nil {
-		return err
-	}
-
-	_ = encrypt.Close() // flush
-
-	err = ioutil.WriteFile(rcFilePath, buff.Bytes(), 0600)
-	if err != nil {
-		return err
+		return fmt.Errorf("failed to update credentials file: %w", err)
 	}
 
 	return nil
 }
 
-func readRCFile(rcFilePath string, pswd []byte) (*config, error) {
-	file, _ := os.Open(rcFilePath)
-	defer file.Close()
-
-	prompt := func(passPhrase []byte) openpgp.PromptFunction {
-		var called bool
-		return func([]openpgp.Key, bool) ([]byte, error) {
-			if called {
-				return nil, errors.New("the passphrase is invalid")
-			}
-			called = true
-			return passPhrase, nil
-		}
-	}
-	md, err := openpgp.ReadMessage(file, nil, prompt(pswd), encryptionConfiguration)
-	if err != nil {
-		return nil, err
-	}
-
-	decrypted, err := ioutil.ReadAll(md.UnverifiedBody)
-	if err != nil {
-		return nil, err
-	}
-
-	var conf config
-	err = json.Unmarshal(decrypted, &conf)
-	if err != nil {
-		return nil, err
-	}
-
-	return &conf, nil
-}
-
-func readMasterPassword(opts *options) ([]byte, error) {
-	pswdThroughCLI := opts.Password
-	if !opts.PasswordRequired && pswdThroughCLI == "" {
-		return make([]byte, 0), nil
-	}
-
-	if pswdThroughCLI != "" {
-		return []byte(pswdThroughCLI), nil
-	}
-
-	fmt.Print("master password: ")
-	pswd, err := terminal.ReadPassword(int(syscall.Stdin))
-	fmt.Print("\n")
-	return pswd, err
-}
-
-func updateCredentials(opts *options, conf *config, sessToken *sts.GetSessionTokenOutput) error {
+func updateCredentials(opts *internal.Options, conf *internal.Config, sessToken *sts.GetSessionTokenOutput) error {
 	if !opts.TokenOnly {
-		credentialsFilePath, err := getCredentialsFilePath(opts)
+		credentialsFilePath, err := opts.GetCredentialsFileFullPath()
 		if err != nil {
 			return err
 		}
@@ -243,50 +106,6 @@ func updateCredentials(opts *options, conf *config, sessToken *sts.GetSessionTok
 	}
 
 	return nil
-}
-
-func getSessionToken(totp string, opts *options, conf *config) (*sts.GetSessionTokenOutput, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Credentials: credentials.NewStaticCredentials(conf.AccessKeyID, conf.SecretAccessKey, ""),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	svc := sts.New(sess)
-	input := &sts.GetSessionTokenInput{
-		DurationSeconds: aws.Int64(opts.Duration),
-		SerialNumber:    aws.String(conf.MFASerial),
-		TokenCode:       aws.String(totp),
-	}
-
-	return svc.GetSessionToken(input)
-}
-
-func getCredentialsFilePath(opts *options) (string, error) {
-	credentialsFilePath := opts.CredentialsFilePath
-	if credentialsFilePath != "" {
-		return credentialsFilePath, nil
-	}
-
-	homeDir, err := homedir.Dir()
-	if err != nil {
-		return "", errors.Wrap(err, "failed to get home directory")
-	}
-	return filepath.Join(homeDir, ".aws", "credentials"), nil
-}
-
-func getRCFilePath(opts *options) (string, error) {
-	configurationFilePath := opts.RCFilePath
-	if configurationFilePath != "" {
-		return configurationFilePath, nil
-	}
-
-	homeDir, err := homedir.Dir()
-	if err != nil {
-		return "", errors.Wrap(err, "failed to get home directory")
-	}
-	return filepath.Join(homeDir, ".sesstok.rc"), nil
 }
 
 func initialize(rcFilePath string) error {
@@ -312,12 +131,12 @@ func initialize(rcFilePath string) error {
 	pswd := make([]byte, 0)
 	if shouldSetMasterPswd == "y" || shouldSetMasterPswd == "yes" {
 		fmt.Print("master password: ")
-		pswd, err = terminal.ReadPassword(int(syscall.Stdin))
+		pswd, err = terminal.ReadPassword(syscall.Stdin)
 		if err != nil {
 			return err
 		}
 		fmt.Print("\nmaster password (confirm): ")
-		confirmPswd, err := terminal.ReadPassword(int(syscall.Stdin))
+		confirmPswd, err := terminal.ReadPassword(syscall.Stdin)
 		fmt.Printf("\n")
 		if err != nil {
 			return err
@@ -358,18 +177,35 @@ func initialize(rcFilePath string) error {
 		return err
 	}
 
-	conf := &config{
+	conf := &internal.Config{
 		AccessKeyID:     accessKeyID,
 		SecretAccessKey: secretAccessKey,
 		MFASerial:       mfaSerial,
 		ProfileName:     profileName,
 	}
 
-	err = writeRCFile(pswd, rcFilePath, conf)
+	err = conf.WriteRCFile(pswd, rcFilePath)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("initialized (created rc file: %s)\n", rcFilePath)
+	return nil
+}
+
+func dumpRCFile(opts *internal.Options, rcFilePath string) error {
+	pswd, err := internal.LoadMasterPassword(opts)
+	if err != nil {
+		return fmt.Errorf("failed to read master password: %w", err)
+	}
+	conf, err := internal.ReadRCFile(pswd, rcFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to read rc file: %w", err)
+	}
+	serializedConf, err := json.Marshal(conf)
+	if err != nil {
+		return fmt.Errorf("failed to serialize the contents of rc file: %w", err)
+	}
+	fmt.Printf("%s\n", serializedConf)
 	return nil
 }
