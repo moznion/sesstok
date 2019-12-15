@@ -54,6 +54,20 @@ When you run this tool for the first time, it requires the initializing procedur
 - `MFA serial`: MFA serial number (i.e. ARN)
 - `Profile Name`: AWS profile name (this tool updates AWS credentials automatically for this specified profile)
 
+### To assume role for another role
+
+Please configure the AWS credentials information (e.g. `~/.aws/credentials`), like so:
+
+```
+[your-profile-name]
+role_arn       = arn:aws:iam::${AWS_ACCOUNT_ID}:role/${ROLE_TO_ASSUME_ROLE}
+source_profile = $PROFILE_NAME_OF_SESSTOK_USING
+```
+
+(please replace `your-profile-name`, `$AWS_ACCOUNT_ID`, `$ROLE_TO_ASSUME_ROLE` and `$PROFILE_NAME_OF_SESSTOK` according to your environment)
+
+Then, after the session token retrieving, it can use the AWS resource as `your-profile-name` role.
+
 ## FAQ
 
 ### How to switch multiple AWS profiles
