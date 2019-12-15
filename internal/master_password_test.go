@@ -46,5 +46,6 @@ func TestReadMasterPassword_WithTerminalPassword(t *testing.T) {
 	_, err := LoadMasterPassword(opt)
 
 	// XXX check whether it goes terminal input mode
-	assert.EqualError(t, err, "operation not supported by device")
+	assert.Error(t, err)
+	assert.True(t, err.Error() == "operation not supported by device" || err.Error() == "inappropriate ioctl for device")
 }
