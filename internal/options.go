@@ -69,7 +69,7 @@ func NewOptionsParser() *OptionsParser {
 
 // ParseArgs parses the CLI arguments and converts that to the Options.
 func (p *OptionsParser) ParseArgs(args []string) (*Options, error) {
-	args, err := p.parser.ParseArgs(args)
+	_, err := p.parser.ParseArgs(args)
 	if err != nil {
 		return nil, err
 	}
