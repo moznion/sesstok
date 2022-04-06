@@ -3,14 +3,18 @@ on: [push]
 jobs:
 
   build:
+    strategy:
+      matrix:
+        go-version: [1.13.x, 1.18.x]
+        golangcilint-version: [1.45.2]
     name: Test
     runs-on: ubuntu-latest
     steps:
 
-    - name: Set up Go 1.13
-      uses: actions/setup-go@v1
+    - name: Set up Go ${{ matrix.go-version }}
+      uses: actions/setup-go@v3
       with:
-        go-version: 1.13
+        go-version: ${{ matrix.go-version }}
       id: go
 
     - name: Check out code into the Go module directory
@@ -18,8 +22,8 @@ jobs:
 
     - name: Get go toolchains
       run: |
-        go get -u golang.org/x/lint/golint
-        sudo cp $GOPATH/bin/golint /usr/bin/
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v${{ matrix.golangcilint-version }}
+        sudo cp $GOPATH/bin/golangci-lint /usr/bin/
       env:
         GOPATH: /home/runner/work/sesstok/go
 
