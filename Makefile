@@ -40,6 +40,7 @@ clean:
 	rm -rf $(RELEASE_DIR)/sesstok_*
 
 check: test lint vet
+ci-check: test vet
 
 test:
 	go test -v -race ./...

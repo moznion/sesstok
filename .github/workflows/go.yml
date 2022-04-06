@@ -1,12 +1,11 @@
 name: Go
-on: [push]
+on:
+  - push
 jobs:
-
   build:
     strategy:
       matrix:
-        go-version: [1.13.x, 1.18.x]
-        golangcilint-version: [1.45.2]
+        go-version: [1.17.x, 1.18.x]
     name: Test
     runs-on: ubuntu-latest
     steps:
@@ -18,17 +17,13 @@ jobs:
       id: go
 
     - name: Check out code into the Go module directory
-      uses: actions/checkout@v1
-
-    - name: Get go toolchains
-      run: |
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v${{ matrix.golangcilint-version }}
-        sudo cp $GOPATH/bin/golangci-lint /usr/bin/
-      env:
-        GOPATH: /home/runner/work/sesstok/go
+      uses: actions/checkout@v3
 
     - name: Do test
-      run: make check
-      env:
-        GOPATH: /home/runner/work/sesstok/go
+      run: make ci-check
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v2
+      with:
+        version: latest
 
