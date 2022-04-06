@@ -45,7 +45,7 @@ test:
 	go test -v -race ./...
 
 lint:
-	golint -set_exit_status $(PKGS)
+	golangci-lint run -v
 
 vet:
 	go vet $(PKGS)
