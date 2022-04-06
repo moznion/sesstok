@@ -131,12 +131,12 @@ func initialize(rcFilePath string) error {
 	pswd := make([]byte, 0)
 	if shouldSetMasterPswd == "y" || shouldSetMasterPswd == "yes" {
 		fmt.Print("master password: ")
-		pswd, err = terminal.ReadPassword(syscall.Stdin)
+		pswd, err = terminal.ReadPassword(int(syscall.Stdin))
 		if err != nil {
 			return err
 		}
 		fmt.Print("\nmaster password (confirm): ")
-		confirmPswd, err := terminal.ReadPassword(syscall.Stdin)
+		confirmPswd, err := terminal.ReadPassword(int(syscall.Stdin))
 		fmt.Printf("\n")
 		if err != nil {
 			return err
