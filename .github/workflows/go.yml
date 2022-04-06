@@ -5,7 +5,7 @@ jobs:
   build:
     strategy:
       matrix:
-        go-version: [1.13.x, 1.18.x]
+        go-version: [1.17.x, 1.18.x]
         golangcilint-version: [1.45.2]
     name: Test
     runs-on: ubuntu-latest
